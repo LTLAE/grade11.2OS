@@ -81,7 +81,11 @@ experiment2
 experiment3  
 ---
 * 操作系统真象还原 (郑纲)  1 - 7 章 内容。  
+&nbsp;&nbsp;虚拟磁盘文件名为 hd60m.img
 
 course design  
 ---
 * 操作系统真象还原 (郑纲)  8 - 10 章 内容。  
+&nbsp;&nbsp;虚拟磁盘文件名为 hd60m.img
+
+在学习过程中，参考了[seaswalker大大的tiny-os项目](https://github.com/seaswalker/tiny-os)，在此特别感谢！
