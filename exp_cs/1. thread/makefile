@@ -1,0 +1,84 @@
+buildDir = program/build
+entryPoint = 0xc0001500
+cLib = -I program/lib/ -I program/lib/kernel/ -I program/kernel/ -I program/device/
+asmLib = -I program/boot/include/
+cc = i386-elf-gcc
+ld = i386-elf-ld
+asFlags = -f elf
+cFlags = -Wall -m32 -fno-stack-protector $(cLib) -c -fno-builtin -W -Wstrict-prototypes -Wmissing-prototypes
+ldFlags = -m elf_i386 -Ttext $(entryPoint) -e main -Map $(buildDir)/kernel.map
+objs = $(buildDir)/main.o $(buildDir)/init.o $(buildDir)/interrupt.o $(buildDir)/timer.o $(buildDir)/kernel.o $(buildDir)/print.o \
+$(buildDir)/bitmap.o $(buildDir)/memory.o $(buildDir)/string.o $(buildDir)/debug.o $(buildDir)/thread.o $(buildDir)/switch.o \
+$(buildDir)/list.o
+
+.PHONY: createBuildDir clean writeHD launchBochs all
+# PHONY need to be placed before its targets
+
+all: createBuildDir compile writeHD launchBochs
+
+createBuildDir:
+	if [ ! -d $(buildDir) ];	\
+		then mkdir $(buildDir);		\
+	fi
+
+clean:
+	rm -rI $(buildDir)
+	cp hd60M_empty.img hd60M.img
+	echo "Clean complete."
+
+compile: \
+	$(buildDir)/mbr.bin		\
+	$(buildDir)/loader.bin	\
+	$(buildDir)/kernel.bin	
+	echo "Build complete."
+
+writeHD:
+	dd if=$(buildDir)/mbr.bin of=hd60M.img bs=512 count=1 conv=notrunc
+	dd if=$(buildDir)/loader.bin of=hd60M.img bs=512 count=4 seek=2 conv=notrunc
+	dd if=$(buildDir)/kernel.bin of=hd60M.img bs=512 count=200 seek=9 conv=notrunc
+	echo "Write to hd complete."
+
+launchBochs:
+	read -p "Press any key to launch bochs..."
+	bochs -f yjybochsrc.disk
+
+# Compile boot files
+$(buildDir)/mbr.bin: program/boot/mbr.S
+	nasm $(asmLib) $< -o $@
+$(buildDir)/loader.bin: program/boot/loader.S
+	nasm $(asmLib) $< -o $@
+
+# Compile C
+$(buildDir)/main.o: program/kernel/main.c program/lib/kernel/print.h program/lib/stdint.h program/kernel/init.h
+	$(cc) $(cFlags) $< -o $@
+$(buildDir)/init.o: program/kernel/init.c program/kernel/init.h program/lib/kernel/print.h program/lib/stdint.h program/kernel/interrupt.h program/device/timer.h
+	$(cc) $(cFlags) $< -o $@
+$(buildDir)/interrupt.o: program/kernel/interrupt.c program/kernel/interrupt.h program/lib/stdint.h program/kernel/global.h program/kernel/io.h program/lib/kernel/print.h
+	$(cc) $(cFlags) $< -o $@
+$(buildDir)/timer.o: program/device/timer.c program/device/timer.h program/lib/stdint.h program/kernel/io.h program/lib/kernel/print.h
+	$(cc) $(cFlags) $< -o $@
+$(buildDir)/debug.o: program/kernel/debug.c program/kernel/debug.h program/lib/kernel/print.h program/lib/stdint.h program/kernel/interrupt.h
+	$(cc) $(cFlags) $< -o $@
+$(buildDir)/string.o: program/lib/string.c program/lib/string.h program/kernel/global.h program/kernel/debug.h
+	$(cc) $(cFlags) $< -o $@
+$(buildDir)/bitmap.o: program/lib/kernel/bitmap.c program/lib/kernel/bitmap.h program/kernel/debug.h program/kernel/interrupt.h program/lib/stdint.h
+	$(cc) $(cFlags) $< -o $@
+$(buildDir)/list.o: program/lib/kernel/list.c program/lib/kernel/list.h program/kernel/interrupt.h program/kernel/global.h
+	$(cc) $(cFlags) $< -o $@
+$(buildDir)/memory.o: program/kernel/memory.c program/kernel/memory.h program/lib/kernel/bitmap.h program/lib/stdint.h program/lib/kernel/print.h program/kernel/debug.h program/lib/string.h
+	$(cc) $(cFlags) $< -o $@
+$(buildDir)/thread.o: program/kernel/thread.c program/kernel/thread.h program/lib/stdint.h program/lib/string.c program/kernel/global.h program/kernel/memory.h program/kernel/debug.h program/kernel/interrupt.h program/lib/kernel/print.h program/lib/kernel/list.h
+	$(cc) $(cFlags) $< -o $@
+
+# Compile assembly
+$(buildDir)/kernel.o: program/kernel/kernel.S
+	nasm $(asFlags) $< -o $@
+$(buildDir)/print.o: program/lib/kernel/print.S
+	nasm $(asFlags) $< -o $@
+$(buildDir)/switch.o: program/kernel/switch.S
+	nasm $(asFlags) $< -o $@
+
+# Link
+$(buildDir)/kernel.bin: $(objs)
+	$(ld) $(ldFlags) $^ -o $@
+
